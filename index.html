@@ -464,6 +464,8 @@ function render(){
 ['fView','fType','fSport','fAge','fGender','fStatus'].forEach(id=>$(id).onchange=render);
 $('fQ').oninput=render;
 $('reset').onclick=()=>{['fType','fSport','fAge','fGender','fStatus'].forEach(id=>$(id).value='');$('fView').value='cur';$('fQ').value='';selDay=null;render()};
+// 처음 열면 오늘 날짜를 선택해 둔다(오늘 경기가 없으면 다음 경기일, 대회가 끝났으면 선택 없음)
+{const days=[...new Set(entries(filtered()).map(([r,i])=>r.p[i].d))].sort();selDay=days.includes(TODAY)?TODAY:(days.find(d=>d>TODAY)||null)}
 render();
 </script>
 
