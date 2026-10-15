@@ -1,0 +1,57 @@
+name: 공식 자료 갱신·배포
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # 매시 7분(UTC 기준이지만 매시간이라 한국 시간도 매시 7분). GitHub 사정에 따라 늦어질 수 있음
+  workflow_dispatch:       # Actions 탭에서 수동 실행
+  push:
+    branches: [main]       # 직접 고쳐 올리면 갱신 없이 바로 배포
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 공식 홈페이지 자료 갱신
+        if: github.event_name != 'push'
+        run: python update_official.py index.html
+
+      - name: 바뀐 자료 커밋
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "공식 자료 갱신 $(TZ=Asia/Seoul date '+%m-%d %H:%M')"
+            git push
+          fi
+
+      - name: 배포할 파일 준비
+        run: mkdir site && cp index.html site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
