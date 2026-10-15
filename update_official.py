@@ -76,7 +76,18 @@ def score(rec):
 TR = re.compile(r"<tr>(.*?)</tr>", re.S)
 CODES = re.compile(r"openSide\('([^']+)','([^']+)'")
 TDS = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
-WHEN = re.compile(r"(\d{4}/\d\d/\d\d)\s*([\d:]*)\s*(?:~\s*([\d:]*))?")
+# '2026/10/17 09:00 ~ 12:00', '2026/10/17 14:00 ~ 10/18 16:00', '2026/10/17 ~ 10/21'(요트처럼 기간만 있는 경우)
+WHEN = re.compile(r"\d{4}/(\d\d)/(\d\d)\s*(\d\d:\d\d)?\s*(?:~\s*(?:(\d\d)/(\d\d))?\s*(\d\d:\d\d)?)?")
+
+
+def when_of(cell):
+    """일시 칸을 (날짜, 시작, 끝날짜, 끝시각)으로 나눈다. 끝날짜는 여러 날에 걸친 경기만 있다."""
+    m = WHEN.search(cell)
+    if not m:
+        return None
+    mo, dd, t1, mo2, dd2, t2 = m.groups()
+    d, d2 = f"{mo}-{dd}", (f"{mo2}-{dd2}" if mo2 else "")
+    return d, t1 or "", d2 if d2 != d else "", t2 or ""
 
 
 def class_schedule(class_cd, wanted):
@@ -88,11 +99,11 @@ def class_schedule(class_cd, wanted):
         tds = [text(t) for t in TDS.findall(row)]
         if not codes or len(tds) < 5 or codes.group(1) not in wanted:
             continue
-        when = WHEN.search(tds[4])
+        when = when_of(tds[4])
         if not when:
             continue
-        d, s, e = when.groups()
-        slot = [d[5:].replace("/", "-"), s or "", e or ""]
+        d, s, _, e = when
+        slot = [d, s, e]
         lst = out.setdefault(codes.group(1), {}).setdefault(round_key(tds[2]), [])
         if slot not in lst:
             lst.append(slot)
@@ -122,14 +133,14 @@ def record_schedule():
             tds = [text(t) for t in TDS.findall(row)]
             if not m or len(tds) < 6:
                 continue
-            when = WHEN.search(tds[4])
+            when = when_of(tds[4])
             if not when:
                 continue
-            d, s, e = when.groups()
+            d, s, d2, e = when
             ad = re.search(r"mapSearch\('([^']*)'\)", row)
             rows.append({
                 "s": sport, "k": tds[0], "e": tds[1], "r": tds[2], "st": tds[3],
-                "d": d[5:].replace("/", "-"), "t1": s or "", "t2": e or "",
+                "d": d, "t1": s, "d2": d2, "t2": e,
                 "v": tds[5], "ad": ad.group(1) if ad else "",
                 "dc": m.group(1), "rh": m.group(2), "pg": m.group(3),
             })
